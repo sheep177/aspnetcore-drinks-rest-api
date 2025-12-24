@@ -10,5 +10,8 @@ public class DrinkProfile: Profile
     {
         CreateMap<Drink, DrinksDto>();
         CreateMap<DrinksForCreationDto, Drink>();
+
+        CreateMap<Drink, DrinksDto>();
+        CreateMap<Ingredient, IngredientDto>();
     }
 }

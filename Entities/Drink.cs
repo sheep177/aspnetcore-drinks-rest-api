@@ -20,4 +20,6 @@ public class Drink
     
     [Range(0,10000)]
     public decimal Price { get; set; }
+    
+    public ICollection<Ingredient> Ingredients { get; set; } = new  List<Ingredient>();
 }

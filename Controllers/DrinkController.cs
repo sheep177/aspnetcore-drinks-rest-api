@@ -9,13 +9,10 @@ using System.Text.Json;
 
 namespace Drinks.API.Controllers;
 
-/// <summary>
-/// Provides CRUD operations for drinks resources.
-/// All endpoints require authentication.
-/// </summary>
 [ApiController]
 [Route("api/drinks")]
-[Authorize] 
+[Authorize]
+[Produces("application/json")]
 [ProducesResponseType(StatusCodes.Status401Unauthorized)]
 [ProducesResponseType(StatusCodes.Status403Forbidden)]
 public class DrinkController : ControllerBase
@@ -29,25 +26,9 @@ public class DrinkController : ControllerBase
         _mapper = mapper;
     }
 
-    /// <summary>
-    /// Retrieves a paginated list of drinks.
-    /// Supports optional search and brand filtering.
-    /// </summary>
-    /// <param name="searchQuery">
-    /// Optional search keyword matched against drink name or brand.
-    /// </param>
-    /// <param name="brand">
-    /// Optional brand filter (exact match).
-    /// </param>
-    /// <param name="pageNumber">
-    /// Page number (starting from 1).
-    /// </param>
-    /// <param name="pageSize">
-    /// Number of items per page (max 20).
-    /// </param>
-    /// <returns>
-    /// A paginated list of drinks with pagination metadata in response headers.
-    /// </returns>
+    // ============================
+    // GET /api/drinks
+    // ============================
     [HttpGet]
     [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<ActionResult<IEnumerable<DrinksDto>>> GetAllDrinks(
@@ -56,10 +37,11 @@ public class DrinkController : ControllerBase
         int pageNumber = 1,
         int pageSize = 10)
     {
+        pageSize = Math.Min(pageSize, 20);
+
         var (drinks, paginationMetadata) =
             await _repo.GetAllDrinksAsync(searchQuery, brand, pageNumber, pageSize);
 
-        
         Response.Headers.Add(
             "X-Pagination",
             JsonSerializer.Serialize(paginationMetadata));
@@ -67,61 +49,38 @@ public class DrinkController : ControllerBase
         return Ok(_mapper.Map<IEnumerable<DrinksDto>>(drinks));
     }
 
-    /// <summary>
-    /// Retrieves a single drink by its unique identifier.
-    /// </summary>
-    /// <param name="id">The ID of the drink.</param>
-    /// <returns>The requested drink.</returns>
-    /// <response code="200">Returns the drink.</response>
-    /// <response code="404">If the drink does not exist.</response>
     [HttpGet("{id}", Name = "GetDrink")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<DrinksDto>> GetDrink(int id)
     {
         var entity = await _repo.GetDrinkByIdAsync(id);
-        if (entity == null)
-        {
-            return NotFound();
-        }
-
+        if (entity == null) return NotFound();
         return Ok(_mapper.Map<DrinksDto>(entity));
     }
 
-    /// <summary>
-    /// Create a new drink
-    /// </summary>
-    /// <param name="drinkForCreation">The drink details</param>
-    /// <returns>The newly created drink</returns>
-    /// <response code="201">Drink created successfully.</response>
     [HttpPost]
     [ProducesResponseType(StatusCodes.Status201Created)]
-    public async Task<ActionResult<DrinksDto>> CreateDrink(
-        DrinksForCreationDto drinkForCreation)
+    public async Task<ActionResult<DrinksDto>> CreateDrink(DrinksForCreationDto input)
     {
-        var entity = _mapper.Map<Drink>(drinkForCreation);
+        var entity = _mapper.Map<Drink>(input);
 
         _repo.CreateDrink(entity);
         await _repo.SaveDrinkAsync();
 
-        var dto = _mapper.Map<DrinksDto>(entity);
+        var output = _mapper.Map<DrinksDto>(entity);
 
         return CreatedAtRoute(
             "GetDrink",
-            new { id = dto.Id },
-            dto);
+            new { id = entity.Id },   // 这里用 entity.Id 更稳：EF 保存后会回填
+            output);
     }
 
-    /// <summary>
-    /// Partially updates a drink using JSON Patch.
-    /// </summary>
-    /// <param name="id">The ID of the drink.</param>
-    /// <param name="patchDoc">
-    /// JSON Patch document describing changes to apply.
-    /// </param>
-    /// <response code="204">Update successful.</response>
-    /// <response code="404">Drink not found.</response>
+    // ============================
+    // PUT /api/drinks/{id}
+    // ============================
     [HttpPut("{id}")]
+    [Consumes("application/json")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> UpdateDrink(
@@ -140,22 +99,23 @@ public class DrinkController : ControllerBase
         return NoContent();
     }
 
-    /// <summary>
-    /// Partially updates a drink using JSON Patch.
-    /// </summary>
-    /// <param name="id">The ID of the drink.</param>
-    /// <param name="patchDoc">
-    /// JSON Patch document describing changes to apply.
-    /// </param>
-    /// <response code="204">Update successful.</response>
-    /// <response code="404">Drink not found.</response>
+    // ============================
+    // PATCH /api/drinks/{id}
+    // ============================
     [HttpPatch("{id}")]
+    [Consumes("application/json-patch+json")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> PartiallyUpdateDrink(
         int id,
         JsonPatchDocument<DrinksPatchDto> patchDoc)
     {
+        if (patchDoc == null)
+        {
+            return BadRequest();
+        }
+
         var entity = await _repo.GetDrinkByIdAsync(id);
         if (entity == null)
         {
@@ -163,11 +123,12 @@ public class DrinkController : ControllerBase
         }
 
         var dtoToPatch = _mapper.Map<DrinksPatchDto>(entity);
+
         patchDoc.ApplyTo(dtoToPatch, ModelState);
 
-        if (!ModelState.IsValid)
+        if (!TryValidateModel(dtoToPatch))
         {
-            return BadRequest(ModelState);
+            return ValidationProblem(ModelState);
         }
 
         _mapper.Map(dtoToPatch, entity);

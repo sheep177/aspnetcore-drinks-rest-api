@@ -22,7 +22,8 @@ public class DrinkRepo : IDrinkRepo
         int pageNumber,
         int pageSize)
     {
-        IQueryable<Drink> collection = _context.Drinks;
+        IQueryable<Drink> collection = _context.Drinks
+            .Include(d => d.Ingredients);
         
         if (!string.IsNullOrWhiteSpace(searchQuery))
         {

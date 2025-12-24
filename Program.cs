@@ -11,6 +11,12 @@ var builder = WebApplication.CreateBuilder(args);
 
 
 builder.Services.AddControllers();
+builder.Services
+    .AddControllers(options =>
+    {
+        options.ReturnHttpNotAcceptable = true; 
+    })
+    .AddXmlDataContractSerializerFormatters();
 
 
 builder.Services.AddEndpointsApiExplorer();
@@ -84,6 +90,18 @@ if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
+}
+else
+{
+    app.UseExceptionHandler(appBuilder =>
+    {
+        appBuilder.Run(async context =>
+        {
+            context.Response.StatusCode = 500;
+            await context.Response.WriteAsync(
+                "An unexpected fault happened. Try again later.");
+        });
+    });
 }
 
 app.UseHttpsRedirection();
