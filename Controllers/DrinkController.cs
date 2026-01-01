@@ -31,25 +31,27 @@ public class DrinkController : ControllerBase
     // ============================
     [HttpGet]
     [ProducesResponseType(StatusCodes.Status200OK)]
-    public async Task<ActionResult<IEnumerable<DrinksDto>>> GetAllDrinks(
+    public async Task<ActionResult<IEnumerable<DrinksDto>>> GetAllDrinks(//actionresult允许返回OK，NotFound，BadRequest
         string? searchQuery,
         string? brand,
         int pageNumber = 1,
-        int pageSize = 10)
+        int pageSize = 10)//这里如果不写的话就默认用我repo的！string。IsNullOrWhiteSpace哪个地方
     {
-        pageSize = Math.Min(pageSize, 20);
+        pageSize = Math.Min(pageSize, 20);//这是serverside hard cap，防止user乱写，防止dos和naive client
 
         var (drinks, paginationMetadata) =
             await _repo.GetAllDrinksAsync(searchQuery, brand, pageNumber, pageSize);
 
         Response.Headers.Add(
             "X-Pagination",
-            JsonSerializer.Serialize(paginationMetadata));
+            JsonSerializer.Serialize(paginationMetadata));//这里不需要主动把param的信息赛道paginationmetadata，APIcontroller自动帮你做
+                                                                //简单类型例如string，int bool默认从query strin取值，如果没传就用默认值
 
         return Ok(_mapper.Map<IEnumerable<DrinksDto>>(drinks));
     }
 
-    [HttpGet("{id}", Name = "GetDrink")]
+    [HttpGet("{id}", Name = "GetDrink")]//apicontroller自动从param绑定，只要param和这个同名就自动绑定默认成FromRoute
+    //如果出现同名就是route和query的话，优先级是Route>Query>Body>Header/Form
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<DrinksDto>> GetDrink(int id)
@@ -65,14 +67,14 @@ public class DrinkController : ControllerBase
     {
         var entity = _mapper.Map<Drink>(input);
 
-        _repo.CreateDrink(entity);
-        await _repo.SaveDrinkAsync();
+        _repo.CreateDrink(entity);//是同步方法，不涉及IO，不访问数据库，所以不会进行异步操作。entity 被 标记为 Added
+        await _repo.SaveDrinkAsync();//EF Core- 色换个昵称SQL，插入数据库，回填entity。Id
 
         var output = _mapper.Map<DrinksDto>(entity);
 
-        return CreatedAtRoute(
+        return CreatedAtRoute(//CreatedAtRoute(string routeName, object routeValues, object value)
             "GetDrink",
-            new { id = entity.Id },   // 这里用 entity.Id 更稳：EF 保存后会回填
+            new { id = entity.Id }, //实际期望一个“包含路由参数名和值”的<<对象>>所以要new,就不能写id = entity.Id，因为这只是个赋值
             output);
     }
 
@@ -80,20 +82,31 @@ public class DrinkController : ControllerBase
     // PUT /api/drinks/{id}
     // ============================
     [HttpPut("{id}")]
-    [Consumes("application/json")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> UpdateDrink(
+    [ProducesResponseType(StatusCodes.Status201Created)]
+    public async Task<IActionResult> UpsertDrink(
         int id,
-        DrinksForUpdateDto drinkForUpdate)
+        DrinksForUpdateDto input)
     {
         var entity = await _repo.GetDrinkByIdAsync(id);
+
+        // 情况 1：资源不存在 → CREATE
         if (entity == null)
         {
-            return NotFound();
+            var newDrink = _mapper.Map<Drink>(input);
+            newDrink.Id = id; // 关键：URI 决定 ID
+
+            _repo.CreateDrink(newDrink);
+            await _repo.SaveDrinkAsync();
+
+            return CreatedAtRoute(
+                "GetDrink",
+                new { id = newDrink.Id },
+                _mapper.Map<DrinksDto>(newDrink));
         }
 
-        _mapper.Map(drinkForUpdate, entity);
+        // 情况 2：资源存在 → UPDATE
+        _mapper.Map(input, entity);
         await _repo.SaveDrinkAsync();
 
         return NoContent();
@@ -155,5 +168,12 @@ public class DrinkController : ControllerBase
         await _repo.SaveDrinkAsync();
 
         return NoContent();
+    }
+    
+    [HttpOptions]
+    public IActionResult GetAuthorsOptions()
+    {
+        Response.Headers.Add("Allow", "GET, HEAD, POST, OPTIONS");
+        return Ok();
     }
 }

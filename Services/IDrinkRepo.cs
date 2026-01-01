@@ -17,5 +17,5 @@ public interface IDrinkRepo
     
     void DeleteDrink(Drink drink);
     
-    Task<bool> SaveDrinkAsync();
+    Task SaveDrinkAsync();
 }

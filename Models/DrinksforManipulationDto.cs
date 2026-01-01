@@ -2,20 +2,23 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Drinks.API.Models;
 
-public class DrinksPatchDto: IValidatableObject
+public abstract class DrinksForManipulationDto : IValidatableObject
 {
+    [Required(ErrorMessage = "Name is required")]
     [MaxLength(100)]
-    public string? Name { get; set; }
+    public virtual string Name { get; set; } = string.Empty;
 
+    [Required(ErrorMessage = "Brand is required")]
     [MaxLength(100)]
-    public string? Brand { get; set; }
+    public virtual string Brand { get; set; } = string.Empty;
 
     [Range(0.01, 1000)]
-    public decimal? Price { get; set; }
+    public virtual decimal Price { get; set; }
 
+    
     public IEnumerable<ValidationResult> Validate(ValidationContext context)
     {
-        if (Name != null && Brand != null && Name == Brand)
+        if (Name == Brand)
         {
             yield return new ValidationResult(
                 "Name must be different from Brand",

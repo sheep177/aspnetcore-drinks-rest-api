@@ -5,18 +5,53 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.OpenApi.Models;
+using Newtonsoft.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
 
 
-builder.Services.AddControllers();
 builder.Services
     .AddControllers(options =>
     {
-        options.ReturnHttpNotAcceptable = true; 
+        // 不接受的 Accept → 406
+        options.ReturnHttpNotAcceptable = true;
     })
-    .AddXmlDataContractSerializerFormatters();
+    // JSON Patch / Newtonsoft
+    .AddNewtonsoftJson(options =>
+    {
+        options.SerializerSettings.ContractResolver =
+            new CamelCasePropertyNamesContractResolver();
+    })
+    // XML 输入 & 输出
+    .AddXmlDataContractSerializerFormatters()
+    // Validation 行为（400 → 422）
+    .ConfigureApiBehaviorOptions(options =>
+    {
+        options.InvalidModelStateResponseFactory = context =>
+        {
+            var problemDetailsFactory =
+                context.HttpContext.RequestServices
+                    .GetRequiredService<ProblemDetailsFactory>();
+
+            var validationProblemDetails =
+                problemDetailsFactory.CreateValidationProblemDetails(
+                    context.HttpContext,
+                    context.ModelState);
+
+            validationProblemDetails.Status = StatusCodes.Status422UnprocessableEntity;
+            validationProblemDetails.Title = "Validation failed";
+            validationProblemDetails.Type = "https://httpstatuses.com/422";
+            validationProblemDetails.Instance = context.HttpContext.Request.Path;
+
+            return new UnprocessableEntityObjectResult(validationProblemDetails)
+            {
+                ContentTypes = { "application/problem+json" }
+            };
+        };
+    });
 
 
 builder.Services.AddEndpointsApiExplorer();

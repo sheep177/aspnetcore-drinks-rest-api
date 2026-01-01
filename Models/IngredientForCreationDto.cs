@@ -1,11 +1,18 @@
+using System.ComponentModel.DataAnnotations;
 using Drinks.API.Entities;
 
 namespace Drinks.API.Models;
 
 public class IngredientForCreationDto
 {
-    public string Name { get; set; } =  null!;
+    [Required]
+    [MaxLength(50)]
+    public string Name { get; set; } = string.Empty;
+
+    [Range(0.01, 1000)]
     public decimal Amount { get; set; }
-    public string Unit { get; set; } =  null!;
-    public IEnumerable<IngredientDto> Ingredients { get; set; } =  new List<IngredientDto>();
+
+    [Required]
+    [MaxLength(20)]
+    public string Unit { get; set; } = string.Empty;
 }

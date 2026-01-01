@@ -1,8 +1,12 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace Drinks.API.Models;
 
-public class DrinksForUpdateDto
+public class DrinksForUpdateDto:  DrinksForManipulationDto
 {
+    [Required(ErrorMessage = "Name is required")]
     public string Name { get; set; } = string.Empty;
-    public string Brand { get; set; } =  string.Empty;
-    public decimal Price { get; set; }
+    [Required(ErrorMessage = "Brand is required")]
+    public string Brand { get; set; } = string.Empty;
+    
 }

@@ -62,7 +62,7 @@ public class DrinkRepo : IDrinkRepo
     // ============================
     public async Task<Drink?> GetDrinkByIdAsync(int id)
     {
-        return await _context.Drinks.FirstOrDefaultAsync(d => d.Id == id);
+        return await _context.Drinks.Include(d => d.Ingredients).FirstOrDefaultAsync(d => d.Id == id);
     }
 
     // ============================
@@ -76,9 +76,9 @@ public class DrinkRepo : IDrinkRepo
     // ============================
     // UPDATE / DELETE 共用 Save
     // ============================
-    public async Task<bool> SaveDrinkAsync()
+    public async Task SaveDrinkAsync()
     {
-        return await _context.SaveChangesAsync() >= 0;
+       await _context.SaveChangesAsync();
     }
 
     // ============================
