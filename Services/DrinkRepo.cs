@@ -1,5 +1,6 @@
 using Drinks.API.DbContext;
 using Drinks.API.Entities;
+using Drinks.API.ResourceParameters;
 using Microsoft.EntityFrameworkCore;
 
 namespace Drinks.API.Services;
@@ -16,39 +17,37 @@ public class DrinkRepo : IDrinkRepo
     // ============================
     // GET ALL（Search + Filter + Paging）
     // ============================
-    public async Task<(IEnumerable<Drink>, PaginationMetadata)> GetAllDrinksAsync(
-        string? searchQuery,
-        string? brand,
-        int pageNumber,
-        int pageSize)
+    public async Task<(IEnumerable<Drink>, PaginationMetadata)> 
+        GetAllDrinksAsync(DrinksResourceParameters parameters)
     {
-        IQueryable<Drink> collection = _context.Drinks
-            .Include(d => d.Ingredients);
-        
+        var collection = _context.Drinks
+            .Include(d => d.Ingredients)
+            .AsQueryable();
+
+        var searchQuery = parameters.SearchQuery?.Trim();
+        var brand = parameters.Brand?.Trim();
+        var pageSize = Math.Min(parameters.PageSize, 20);
+        var pageNumber = parameters.PageNumber;
+
         if (!string.IsNullOrWhiteSpace(searchQuery))
         {
-            searchQuery = searchQuery.Trim();
-
             collection = collection.Where(d =>
                 d.Name.Contains(searchQuery) ||
-                (d.Brand != null && d.Brand.Contains(searchQuery)));
+                d.Brand.Contains(searchQuery));
         }
-        
+
         if (!string.IsNullOrWhiteSpace(brand))
         {
-            brand = brand.Trim();
             collection = collection.Where(d => d.Brand == brand);
         }
-        
+
         var totalItemCount = await collection.CountAsync();
-        
-        pageSize = Math.Min(pageSize, 20); 
-        collection = collection
+
+        var drinks = await collection
             .Skip((pageNumber - 1) * pageSize)
-            .Take(pageSize);
-        
-        var drinks = await collection.ToListAsync();
-        
+            .Take(pageSize)
+            .ToListAsync();
+
         var metadata = new PaginationMetadata(
             totalItemCount,
             pageSize,

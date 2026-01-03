@@ -1,14 +1,12 @@
 using Drinks.API.Entities;
+using Drinks.API.ResourceParameters;
 
 namespace Drinks.API.Services;
 
 public interface IDrinkRepo
 {
     Task<(IEnumerable<Drink>, PaginationMetadata)> GetAllDrinksAsync(
-        string? searchQuery,
-        string? brand,
-        int pageNumber,
-        int pageSize);
+        DrinksResourceParameters  parameters);
     
     Task<Drink?> GetDrinkByIdAsync(int id);
 

@@ -6,6 +6,9 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.JsonPatch;
 using Microsoft.AspNetCore.Mvc;
 using System.Text.Json;
+using Drinks.API.ResourceParameters;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
+using Microsoft.Extensions.Options;
 
 namespace Drinks.API.Controllers;
 
@@ -32,15 +35,12 @@ public class DrinkController : ControllerBase
     [HttpGet]
     [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<ActionResult<IEnumerable<DrinksDto>>> GetAllDrinks(//actionresult允许返回OK，NotFound，BadRequest
-        string? searchQuery,
-        string? brand,
-        int pageNumber = 1,
-        int pageSize = 10)//这里如果不写的话就默认用我repo的！string。IsNullOrWhiteSpace哪个地方
+       [FromQuery]DrinksResourceParameters parameters)//这里如果不写的话就默认用我repo的！string。IsNullOrWhiteSpace哪个地方
     {
-        pageSize = Math.Min(pageSize, 20);//这是serverside hard cap，防止user乱写，防止dos和naive client
+        parameters.PageSize = Math.Min(parameters.PageSize, 20);//这是serverside hard cap，防止user乱写，防止dos和naive client
 
         var (drinks, paginationMetadata) =
-            await _repo.GetAllDrinksAsync(searchQuery, brand, pageNumber, pageSize);
+            await _repo.GetAllDrinksAsync(parameters);
 
         Response.Headers.Add(
             "X-Pagination",
@@ -175,5 +175,15 @@ public class DrinkController : ControllerBase
     {
         Response.Headers.Add("Allow", "GET, HEAD, POST, OPTIONS");
         return Ok();
+    }
+    
+    public override ActionResult ValidationProblem(
+        ModelStateDictionary modelStateDictionary)
+    {
+        var options = HttpContext.RequestServices
+            .GetRequiredService<IOptions<ApiBehaviorOptions>>();
+
+        return (ActionResult)options.Value
+            .InvalidModelStateResponseFactory(ControllerContext);
     }
 }
