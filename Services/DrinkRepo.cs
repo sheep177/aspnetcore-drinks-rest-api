@@ -1,5 +1,6 @@
 using Drinks.API.DbContext;
 using Drinks.API.Entities;
+using Drinks.API.Helpers;
 using Drinks.API.ResourceParameters;
 using Microsoft.EntityFrameworkCore;
 
@@ -11,80 +12,64 @@ public class DrinkRepo : IDrinkRepo
 
     public DrinkRepo(DrinkInfoContext context)
     {
-        _context = context ?? throw new ArgumentNullException(nameof(context));
+        _context = context;
     }
 
-    // ============================
-    // GET ALL（Search + Filter + Paging）
-    // ============================
-    public async Task<(IEnumerable<Drink>, PaginationMetadata)> 
-        GetAllDrinksAsync(DrinksResourceParameters parameters)
+    public async Task<PagedList<Drink>> GetAllDrinksAsync(
+        DrinksResourceParameters parameters)
     {
         var collection = _context.Drinks
             .Include(d => d.Ingredients)
             .AsQueryable();
 
-        var searchQuery = parameters.SearchQuery?.Trim();
-        var brand = parameters.Brand?.Trim();
-        var pageSize = Math.Min(parameters.PageSize, 20);
-        var pageNumber = parameters.PageNumber;
-
-        if (!string.IsNullOrWhiteSpace(searchQuery))
+        if (!string.IsNullOrWhiteSpace(parameters.SearchQuery))
         {
+            var search = parameters.SearchQuery.Trim();
             collection = collection.Where(d =>
-                d.Name.Contains(searchQuery) ||
-                d.Brand.Contains(searchQuery));
+                d.Name.Contains(search) ||
+                d.Brand.Contains(search));
         }
 
-        if (!string.IsNullOrWhiteSpace(brand))
+        if (!string.IsNullOrWhiteSpace(parameters.Brand))
         {
+            var brand = parameters.Brand.Trim();
             collection = collection.Where(d => d.Brand == brand);
         }
+        // 👇 sorting（在 paging 前）
+        collection = collection.ApplySort(
+            parameters.OrderBy,
+            DrinkPropertyMapping.Mapping);
 
-        var totalItemCount = await collection.CountAsync();
+        var pageSize = Math.Min(parameters.PageSize, 20);
+        var pageNumber = parameters.PageNumber < 1 ? 1 : parameters.PageNumber;
 
-        var drinks = await collection
-            .Skip((pageNumber - 1) * pageSize)
-            .Take(pageSize)
-            .ToListAsync();
-
-        var metadata = new PaginationMetadata(
-            totalItemCount,
-            pageSize,
-            pageNumber);
-
-        return (drinks, metadata);
+        return await PagedList<Drink>.CreateAsync(
+            collection,
+            pageNumber,
+            pageSize
+        );
     }
 
-    // ============================
-    // GET BY ID
-    // ============================
     public async Task<Drink?> GetDrinkByIdAsync(int id)
     {
-        return await _context.Drinks.Include(d => d.Ingredients).FirstOrDefaultAsync(d => d.Id == id);
+        return await _context.Drinks
+            .Include(d => d.Ingredients)
+            .FirstOrDefaultAsync(d => d.Id == id);
     }
 
-    // ============================
-    // CREATE
-    // ============================
     public void CreateDrink(Drink drink)
     {
         _context.Drinks.Add(drink);
     }
 
-    // ============================
-    // UPDATE / DELETE 共用 Save
-    // ============================
-    public async Task SaveDrinkAsync()
-    {
-       await _context.SaveChangesAsync();
-    }
-
-    // ============================
-    // DELETE
-    // ============================
     public void DeleteDrink(Drink drink)
     {
         _context.Drinks.Remove(drink);
+    }
+    
+
+    public async Task SaveDrinkAsync()
+    {
+        await _context.SaveChangesAsync();
     }
 }

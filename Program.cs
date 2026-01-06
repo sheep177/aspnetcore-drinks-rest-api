@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+using Drinks.API.Filters;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.OpenApi.Models;
@@ -18,6 +19,7 @@ builder.Services
     {
         // 不接受的 Accept → 406
         options.ReturnHttpNotAcceptable = true;
+        options.Filters.Add<ETagFilter>(); // 👈 自动 ETag
     })
     // JSON Patch / Newtonsoft
     .AddNewtonsoftJson(options =>
@@ -52,6 +54,8 @@ builder.Services
             };
         };
     });
+builder.Services.AddResponseCaching(); // 👈 加在这
+        
 
 
 builder.Services.AddEndpointsApiExplorer();
@@ -92,9 +96,10 @@ builder.Services.AddDbContext<DrinkInfoContext>(options =>
     options.UseSqlite(
         builder.Configuration.GetConnectionString("DrinkInfoContext")));
 
+builder.Services.AddMemoryCache();
 
 builder.Services.AddScoped<IDrinkRepo, DrinkRepo>();
-
+builder.Services.AddScoped<IDrinkService, DrinkService>();
 
 builder.Services.AddAutoMapper(AppDomain.CurrentDomain.GetAssemblies());
 
@@ -140,8 +145,8 @@ else
 }
 
 app.UseHttpsRedirection();
-
-
+app.UseRouting();          // 👈 必须补这一行
+app.UseResponseCaching(); // 👈 必须在这里
 app.UseAuthentication();   
 app.UseAuthorization();    
 
