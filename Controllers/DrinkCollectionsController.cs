@@ -29,7 +29,7 @@ public class DrinkCollectionsController : ControllerBase
     public async Task<ActionResult<IEnumerable<DrinksDto>>> GetDrinkCollection(
         [FromRoute] IEnumerable<int> ids)
     {
-        var drinkEntities = await _repository.GetDrinkByIdAsync(ids);
+        var drinkEntities = await _repository.GetDrinksByIdsAsync(ids);
 
         // 关键：如果有任何一个 id 不存在，就当作“这个 key 无效”
         if (drinkEntities.Count() != ids.Count())

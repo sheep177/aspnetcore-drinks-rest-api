@@ -12,6 +12,6 @@ public interface IDrinkRepo
     void CreateDrink(Drink drink);
     void DeleteDrink(Drink drink);
 
-    
+    Task<IEnumerable<Drink>> GetDrinksByIdsAsync(IEnumerable<int> ids);
     Task SaveDrinkAsync();
 }

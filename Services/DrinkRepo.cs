@@ -62,6 +62,13 @@ public class DrinkRepo : IDrinkRepo
         _context.Drinks.Add(drink);
     }
 
+    public async Task<IEnumerable<Drink>> GetDrinksByIdsAsync(IEnumerable<int> ids)
+    {
+        return await _context.Drinks
+            .Where(d => ids.Contains(d.Id))
+            .Include(d => d.Ingredients)
+            .ToListAsync();
+    }
     public void DeleteDrink(Drink drink)
     {
         _context.Drinks.Remove(drink);
