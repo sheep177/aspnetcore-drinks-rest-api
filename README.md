@@ -1,30 +1,38 @@
-<<<<<<< HEAD
-# aspnetcore-drinks-rest-api
-ASP.NET Core Web API demo showcasing clean architecture, CRUD operations, JWT authentication, search, filtering, paging, and Swagger documentation.
-=======
 
 # Drinks API 🍹
 
-A clean, production-style **ASP.NET Core Web API** demonstrating  
-**CRUD + Search + Filter + Pagination + JWT Authentication + Swagger documentation**.
+A **production-style ASP.NET Core Web API** demonstrating real-world backend patterns,  
+including **CRUD, search, filtering, dynamic sorting, pagination, caching, ETag-based concurrency control, JWT authentication**, and Swagger documentation.
 
-This project is designed as a **resume-ready backend project**, following common industry patterns.
+This project is intentionally designed as a **resume-ready backend system**, not a toy demo.
 
 ---
 
-## 🚀 Features
+## 🚀 Key Features
 
+### Core API
 - RESTful CRUD API for Drinks
-- Search (fuzzy match on Name / Brand)
-- Filter (exact Brand filter)
-- Pagination with metadata in response headers
-- JWT Bearer Authentication
-- Protected endpoints with `[Authorize]`
-- Swagger / OpenAPI documentation
-- Entity Framework Core + SQLite
-- AutoMapper for DTO mapping
-- PATCH support via JSON Patch
-- Clean separation of concerns (Controller / Repo / DTO / Entity)
+- DTO-based input/output separation
+- Clean Controller / Service / Repository layering
+
+### Query Capabilities
+- 🔍 Search (fuzzy match on Name / Brand)
+- 🏷️ Filter (exact Brand filter)
+- ↕️ Dynamic sorting (multi-field, asc/desc)
+- 📄 Pagination with metadata
+
+### Performance & Correctness
+- ⚡ In-memory caching for list endpoints
+- 🧠 Cache invalidation on write operations
+- 🏷️ HTTP ETag support for GET
+- 🔒 Optimistic concurrency control via If-Match
+- 🧩 PATCH support with partial updates
+
+### Security & Tooling
+- 🔐 JWT Bearer Authentication
+- 🔒 `[Authorize]` protected endpoints
+- 📘 Swagger / OpenAPI documentation
+- 🧪 Developer-friendly JWT generation (`dotnet user-jwts`)
 
 ---
 
@@ -36,39 +44,51 @@ This project is designed as a **resume-ready backend project**, following common
 - **JWT Bearer Authentication**
 - **AutoMapper**
 - **Swagger (Swashbuckle)**
-- **JSON Patch**
+- **System.Linq.Dynamic.Core**
+- **IMemoryCache**
 
 ---
 
 ## 📁 Project Structure
 
-Drinks.API
-│
-├── Controllers
-│   └── DrinkController.cs
-│
-├── DbContext
-│   └── DrinkInfoContext.cs
-│
-├── Entities
-│   └── Drink.cs
-│
-├── Models (DTOs)
-│   ├── DrinksDto.cs
-│   ├── DrinksForCreationDto.cs
-│   ├── DrinksForUpdateDto.cs
-│   └── DrinksPatchDto.cs
-│
-├── Profiles
-│   └── DrinkProfile.cs
-│
-├── Services
-│   ├── IDrinkRepo.cs
-│   ├── DrinkRepo.cs
-│   └── PaginationMetadata.cs
-│
-├── Program.cs
-├── appsettings.json
+Drinks.API  
+│  
+├── Controllers  
+│   └── DrinkController.cs        // HTTP semantics, headers, status codes  
+│  
+├── Services  
+│   ├── IDrinkService.cs  
+│   └── DrinkService.cs           // Business logic, caching, ETag handling  
+│  
+├── Repositories  
+│   ├── IDrinkRepo.cs  
+│   └── DrinkRepo.cs              // EF Core queries & IQueryable composition  
+│  
+├── Entities  
+│   └── Drink.cs                  // EF entities + RowVersion for concurrency  
+│  
+├── Models (DTOs)  
+│   ├── DrinksDto.cs  
+│   ├── DrinksForCreationDto.cs  
+│   ├── DrinksForUpdateDto.cs  
+│   └── DrinksPatchDto.cs  
+│  
+├── ResourceParameters  
+│   └── DrinksResourceParameters.cs // Query binding (search/filter/sort/page)  
+│  
+├── Helpers  
+│   ├── PagedList.cs              // Pagination container  
+│   ├── IQueryableExtensions.cs   // Dynamic sorting  
+│   └── DrinkPropertyMapping.cs   // Safe field mapping  
+│  
+├── Profiles  
+│   └── DrinkProfile.cs           // AutoMapper configuration  
+│  
+├── DbContext  
+│   └── DrinkInfoContext.cs  
+│  
+├── Program.cs  
+├── appsettings.json  
 └── drinks.db
 
 ---
@@ -77,7 +97,7 @@ Drinks.API
 
 This API uses **JWT Bearer authentication**.
 
-All endpoints under `/api/drinks` are protected:
+All `/api/drinks` endpoints require authorization:
 
 ```csharp
 [Authorize]
@@ -88,11 +108,11 @@ Configured in Program.cs:
 	•	Issuer validation
 	•	Audience validation
 	•	Signature validation
-	•	Symmetric key (Base64)
+	•	Symmetric key
 
 ⸻
 
-🧪 Local Development (Cold Start Friendly)
+🧪 Local Development
 
 No deployment required.
 No external services required.
@@ -107,21 +127,23 @@ cd Drinks.API
 dotnet restore
 dotnet run
 
-3️⃣ Open Swagger UI
+3️⃣ Open Swagger
 
 https://localhost:{PORT}/swagger
 
-Swagger is enabled in Development environment by default.
 
 ⸻
 
-🔑 Generating a Test JWT (Recommended)
+🔑 Generate a Test JWT (Recommended)
 
-During development, use dotnet user-jwts:
+During development:
 
-dotnet user-jwts create --issuer DrinksAPI --audience DrinksClient --claim "city=Antwerp"
+dotnet user-jwts create \
+  --issuer DrinksAPI \
+  --audience DrinksClient \
+  --claim "role=User"
 
-Copy the generated token and use it as:
+Use the token in requests:
 
 Authorization: Bearer <token>
 
@@ -131,63 +153,77 @@ Swagger UI also supports Bearer tokens.
 
 📄 Pagination Metadata
 
-Pagination metadata is returned via response headers:
+Pagination metadata is returned via response headers, not the response body:
 
-X-Pagination:
-{
-  "totalItemCount": 42,
+X-Pagination: {
+  "totalCount": 42,
   "pageSize": 10,
-  "pageNumber": 1,
-  "totalPageCount": 5
+  "currentPage": 1,
+  "totalPages": 5,
+  "hasPrevious": false,
+  "hasNext": true
 }
 
+The response body contains only the data collection.
+
+⸻
+
+🧠 Concurrency & ETag Support
+
+GET with ETag
+	•	Responses include ETag header
+	•	Clients may send If-None-Match
+	•	Server returns 304 Not Modified if unchanged
+
+PUT / PATCH with If-Match
+	•	Clients must send If-Match
+	•	Server enforces optimistic concurrency
+	•	Conflicts return 412 Precondition Failed
+
+This prevents lost updates in concurrent scenarios.
 
 ⸻
 
 📌 Example Endpoints
 
 Method	Endpoint	Description
-GET	/api/drinks	List drinks (search / filter / paging)
-GET	/api/drinks/{id}	Get drink by id
+GET	/api/drinks	List drinks (search / filter / sort / paging)
+GET	/api/drinks/{id}	Get drink by id (ETag-enabled)
 POST	/api/drinks	Create drink
-PUT	/api/drinks/{id}	Update drink
-PATCH	/api/drinks/{id}	Partial update
+PUT	/api/drinks/{id}	Full update (If-Match required)
+PATCH	/api/drinks/{id}	Partial update (If-Match required)
 DELETE	/api/drinks/{id}	Delete drink
 
 
 ⸻
 
 🧠 Design Principles
-	•	Repository pattern
-	•	DTO separation
-	•	Deferred execution with IQueryable
-	•	API-first design
-	•	Header-based metadata
-	•	Minimal controller logic
+	•	Separation of concerns (Controller / Service / Repository)
+	•	Deferred execution via IQueryable
+	•	Header-based metadata (pagination, ETag)
+	•	Explicit HTTP semantics
+	•	Optimistic concurrency
 	•	Resume-oriented readability
 
 ⸻
 
-🎯 Resume Description (Copy-Paste)
+🎯 Resume Description (Copy–Paste)
 
-Built a secure ASP.NET Core Web API featuring CRUD operations, search, filtering, pagination with metadata, JWT authentication, and Swagger documentation. Implemented clean architecture with repository pattern, DTO mapping via AutoMapper, EF Core with SQLite, and protected endpoints using JWT Bearer authentication.
+Built a production-style ASP.NET Core Web API implementing CRUD operations with search, filtering, dynamic sorting, pagination, caching, and HTTP ETag-based optimistic concurrency control. Designed with clean architecture principles using Controller–Service–Repository layers, EF Core with SQLite, AutoMapper for DTO mapping, JWT Bearer authentication, and Swagger documentation.
 
 ⸻
 
-✅ Status
+✅ Project Status
 
 ✔ Resume-ready
 ✔ Cold-start friendly
 ✔ Swagger-documented
-✔ Enterprise-style structure
+✔ Real-world API patterns
 
 ⸻
 
 📎 Notes
 	•	Authentication controller intentionally omitted
-	•	Tokens generated via dotnet user-jwts (industry-friendly approach)
-	•	Suitable for backend / API-focused roles
+	•	Tokens generated via dotnet user-jwts
+	•	Designed for backend / API-focused roles
 
-⸻
-
->>>>>>> 4609de6 (Initial commit: Drinks API (CRUD + search/filter/paging + JWT + Swagger))
